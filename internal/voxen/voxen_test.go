@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 const secretKey = "sk-test-SECRET-do-not-leak"
@@ -103,6 +104,8 @@ func newTestApp(t *testing.T, providers []testProvider, top map[string]any) *App
 	}
 	return NewApp(cfg, t.TempDir())
 }
+
+func init() { retryDelays = []time.Duration{time.Millisecond, time.Millisecond} }
 
 var allCaps = []string{"voices", "speed", "format", "sample_rate", "bitrate", "normalize", "replace", "tags", "latency", "long_text"}
 
@@ -513,5 +516,46 @@ func TestProvidersReportMissingCredential(t *testing.T) {
 	}
 	if _, err := a.Say(context.Background(), SayOptions{Text: "hi", Output: t.TempDir() + "/"}); err == nil {
 		t.Fatalf("no usable credential must fail clearly")
+	}
+}
+
+func TestTransientErrorsAreRetriedOnTheSameProvider(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	up := newUpstream(t, func(string, map[string]any) (int, string, []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls <= 2 {
+			return 503, "application/json", []byte(`{"error":"busy"}`)
+		}
+		return 200, "audio/mpeg", fakeMP3(2, 1)
+	})
+	a := newTestApp(t, []testProvider{{name: "p", up: up, capabilities: allCaps}}, nil)
+	res, err := a.Say(context.Background(), SayOptions{Text: "hi", Output: t.TempDir() + "/"})
+	if err != nil || calls != 3 || len(res.Attempts) != 1 || !res.Attempts[0].OK {
+		t.Fatalf("calls=%d res=%+v err=%v", calls, res, err)
+	}
+}
+
+func TestFinalErrorsAreNotRetried(t *testing.T) {
+	for status, body := range map[int]string{400: `{"error":"bad"}`, 401: `{"error":"no"}`, 404: `{"error":"Voice 'x' not found"}`} {
+		up := newUpstream(t, func(string, map[string]any) (int, string, []byte) { return status, "application/json", []byte(body) })
+		a := newTestApp(t, []testProvider{{name: "p", up: up, capabilities: allCaps}}, nil)
+		if _, err := a.Say(context.Background(), SayOptions{Text: "hi", Output: t.TempDir() + "/"}); err == nil || up.requests != 1 {
+			t.Fatalf("status %d: requests=%d err=%v", status, up.requests, err)
+		}
+	}
+}
+
+func TestRetriesGiveUpAndThenFailOver(t *testing.T) {
+	bad := newUpstream(t, func(string, map[string]any) (int, string, []byte) {
+		return 503, "application/json", []byte(`{"error":"down"}`)
+	})
+	good := mp3Upstream(t)
+	a := newTestApp(t, []testProvider{{name: "a", up: bad, capabilities: allCaps}, {name: "b", up: good, capabilities: allCaps}}, nil)
+	res, err := a.Say(context.Background(), SayOptions{Text: "hi", Output: t.TempDir() + "/"})
+	if err != nil || res.Provider != "b" || bad.requests != 3 {
+		t.Fatalf("provider=%s badRequests=%d err=%v", res.Provider, bad.requests, err)
 	}
 }

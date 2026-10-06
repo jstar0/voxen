@@ -32,7 +32,7 @@ echo "text" | voxen say -o ./audio/
 - Speech tags such as pauses, laughter, whispering or slow speech are written inline in the text. Use only the forms listed in the provider's `tags` and place them exactly as listed.
 - `--preset NAME` applies a named bundle (voice, language, speed, format and more) from the configuration; explicit flags override it. Aliases and defaults are also configured locally.
 - `--output` is a file or a directory (a trailing `/` forces a directory); `--name` sets the file name stem. Existing files are never replaced without `--overwrite`. The extension follows the audio actually returned.
-- Leave `--provider` unset unless the user names a channel. Without it, a provider whose declarations cover the request is preferred, and a channel failure moves on to the next provider; a pinned provider is never replaced.
+- Leave `--provider` unset unless the user names a channel. Without it, a provider whose declarations cover the request is preferred, and transient failures are retried and then a channel failure moves on to the next provider; a pinned provider is never replaced.
 - `--dry-run` shows the plan and the request body without contacting any provider. `--play` plays the file on macOS after saving.
 
 ## Long text and many lines

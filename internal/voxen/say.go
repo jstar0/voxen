@@ -118,7 +118,11 @@ func (a *App) BuildRequest(o SayOptions) (string, Request, error) {
 			for n := range a.Cfg.Presets {
 				names = append(names, n)
 			}
-			return "", Request{}, fmt.Errorf("unknown preset %q (configured: %s)", o.Preset, strings.Join(sortedStrings(names), ", "))
+			configured := "none configured"
+			if len(names) > 0 {
+				configured = "configured: " + strings.Join(sortedStrings(names), ", ")
+			}
+			return "", Request{}, fmt.Errorf("unknown preset %q (%s)", o.Preset, configured)
 		}
 		overlay(&merged, preset)
 	}
@@ -369,7 +373,7 @@ func (a *App) synthesize(ctx context.Context, c candidate, model string, r Reque
 			}
 			chunk := r
 			chunk.Text = text
-			data, contentType, err := c.Provider.Synthesize(ctx, c.Key, model, chunk)
+			data, contentType, err := synthesizeWithRetry(ctx, c, model, chunk)
 			if err != nil {
 				once.Do(func() { firstErr = err; cancel() })
 				return
@@ -386,4 +390,34 @@ func (a *App) synthesize(ctx context.Context, c candidate, model string, r Reque
 		return nil, "", len(texts), err
 	}
 	return audio, types[0], len(texts), nil
+}
+
+// retryDelays spaces the retries of one request. Speech is billed per character,
+// so a repeated request costs next to nothing, while losing a long job to a single
+// dropped connection costs minutes.
+var retryDelays = []time.Duration{500 * time.Millisecond, 2 * time.Second}
+
+// transient reports errors worth repeating on the same provider: a dropped or
+// failed transport, rate limiting, and server errors. Authentication problems and
+// answers about the request are final.
+func transient(err error) bool {
+	var he *HTTPError
+	if !errors.As(err, &he) {
+		return false
+	}
+	return he.Status == 0 || he.Status == 408 || he.Status == 429 || he.Status >= 500
+}
+
+func synthesizeWithRetry(ctx context.Context, c candidate, model string, r Request) ([]byte, string, error) {
+	for attempt := 0; ; attempt++ {
+		data, contentType, err := c.Provider.Synthesize(ctx, c.Key, model, r)
+		if err == nil || attempt >= len(retryDelays) || !transient(err) || ctx.Err() != nil {
+			return data, contentType, err
+		}
+		select {
+		case <-time.After(retryDelays[attempt]):
+		case <-ctx.Done():
+			return nil, "", ctx.Err()
+		}
+	}
 }

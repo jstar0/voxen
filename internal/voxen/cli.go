@@ -47,7 +47,7 @@ func (f *synthFlags) register(cmd *cobra.Command, outputHelp string) {
 	fl.StringVarP(&f.voice, "voice", "v", "", "Voice ID; see `voxen voices`")
 	fl.StringVarP(&f.lang, "lang", "l", "", "Language code, or auto; sent to the provider as given")
 	fl.Float64Var(&f.speed, "speed", 0, "Speaking speed multiplier")
-	fl.StringVar(&f.format, "format", "", "Audio format, such as mp3, wav, pcm, mulaw or alaw")
+	fl.StringVar(&f.format, "format", "", "Audio format name, sent as given; see the provider's formats in `voxen providers`")
 	fl.IntVar(&f.sampleRate, "sample-rate", 0, "Sample rate in Hz")
 	fl.IntVar(&f.bitRate, "bitrate", 0, "MP3 bit rate in bits per second")
 	fl.IntVar(&f.latency, "latency", 0, "Streaming latency optimization level, if the provider supports it")

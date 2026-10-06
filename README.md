@@ -102,7 +102,7 @@ then those without a recent failure, then lower `priority`. A channel failure (4
 402, 403, 408, 429, 5xx, a transport error, or a bare `404 page not found`) moves on to
 the next provider; an answer about the request itself (an unknown voice, a bad
 parameter) is final and never replayed elsewhere. A pinned provider is never replaced.
-Each provider is tried once per call. Outcomes are kept in `~/.local/state/voxen/health.json`
+A dropped connection, 408, 429 or 5xx is first retried twice on the same provider (0.5 s and 2 s apart), per request, so one hiccup does not discard a long multi-chunk job; speech is billed per character, so a repeat costs next to nothing. Then the next provider is tried, each at most once per call. Outcomes are kept in `~/.local/state/voxen/health.json`
 (`VOXEN_HOME` or `--home`), keyed by a credential fingerprint so rotation resets them.
 
 `--json` returns the provider, what was requested, and what actually came back, read
