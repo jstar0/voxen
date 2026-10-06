@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME_OUT="${RUNTIME_OUT:-$HOME/.local/share/voxen/bin}"
+BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
+CONFIG_DIR="${CONFIG_DIR:-$HOME/.config/voxen}"
+BACKUP_DIR="${BACKUP_DIR:-$HOME/.local/state/voxen/install-backups/$(date +%Y%m%dT%H%M%S)}"
+if [[ -n "${VOXEN_CONFIG_SOURCE:-}" ]]; then
+  [[ -f "$VOXEN_CONFIG_SOURCE" ]] || { echo 'VOXEN_CONFIG_SOURCE is not a file' >&2; exit 1; }
+fi
+mkdir -p "$RUNTIME_OUT" "$BIN_DIR" "$CONFIG_DIR" "$BACKUP_DIR"
+index=0
+for path in "$RUNTIME_OUT/voxen" "$BIN_DIR/voxen" "$CONFIG_DIR/config.json"; do
+  index=$((index + 1))
+  if [[ -e "$path" || -L "$path" ]]; then
+    parent="$(basename "$(dirname "$path")")"
+    cp -pP "$path" "$BACKUP_DIR/$index-$parent-$(basename "$path")"
+  fi
+done
+temporary="$(mktemp "$RUNTIME_OUT/.voxen-XXXXXX")"
+trap 'rm -f "$temporary"' EXIT
+cd "$SOURCE"
+revision="$(git rev-parse --short HEAD 2>/dev/null || true)"
+if [[ -n "$revision" ]] && [[ -n "$(git status --porcelain)" ]]; then revision="$revision-dirty"; fi
+go build -trimpath -ldflags="-s -w -X github.com/jstar0/voxen/internal/voxen.BuildCommit=$revision" -o "$temporary" ./cmd/voxen
+chmod 755 "$temporary"
+mv -f "$temporary" "$RUNTIME_OUT/voxen"
+ln -sfn "$RUNTIME_OUT/voxen" "$BIN_DIR/voxen"
+if [[ -n "${VOXEN_CONFIG_SOURCE:-}" ]]; then
+  ln -sfn "$VOXEN_CONFIG_SOURCE" "$CONFIG_DIR/config.json"
+fi
+printf 'binary=%s\nsource=%s\nrevision=%s\nbackup=%s\n' "$BIN_DIR/voxen" "$SOURCE" "$revision" "$BACKUP_DIR"

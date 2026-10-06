@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "default_model": "grok-tts",
+  "concurrency": 2,
+  "defaults": {
+    "voice": "eve",
+    "language": "auto"
+  },
+  "aliases": {
+    "grok": "grok-tts"
+  },
+  "presets": {
+    "narrator": {
+      "voice": "atlas",
+      "language": "zh",
+      "speed": 0.95,
+      "format": "mp3"
+    }
+  },
+  "providers": {
+    "xai": {
+      "kind": "xai-tts",
+      "base_url": "https://api.x.ai/v1",
+      "api_key_env": "XAI_API_KEY",
+      "supported_models": ["grok-tts"],
+      "capabilities": ["voices", "speed", "format", "sample_rate", "bitrate", "normalize", "replace", "tags", "latency", "long_text"],
+      "formats": ["mp3", "wav", "pcm", "mulaw", "alaw"],
+      "sample_rates": [8000, 16000, 22050, 24000, 44100, 48000],
+      "bit_rates": [32000, 64000, 96000, 128000, 192000],
+      "languages": ["auto", "en", "zh", "ja", "ko", "fr", "de", "es-ES", "es-MX", "pt-BR", "pt-PT", "it", "ru", "tr", "vi", "id", "hi", "bn", "ar-EG", "ar-SA", "ar-AE"],
+      "tags": ["[pause]", "[laugh]", "[sigh]", "<whisper>", "<soft>", "<loud>", "<slow>", "<fast>"],
+      "voices": "live",
+      "limits": {"speed_min": 0.7, "speed_max": 1.5, "chunk_chars": 5000, "chunk_concurrency": 3},
+      "priority": 10,
+      "timeout_seconds": 600,
+      "notes": ["Example values follow xAI's published API; they are declarations to edit, not a verified account."]
+    },
+    "gateway": {
+      "kind": "openai-speech",
+      "base_url": "https://gateway.example.com/v1",
+      "api_key_env": "GATEWAY_API_KEY",
+      "supported_models": ["grok-tts"],
+      "capabilities": ["speed", "format"],
+      "formats": ["mp3", "wav", "pcm"],
+      "voices": ["eve", "ara", "rex"],
+      "priority": 20,
+      "timeout_seconds": 600
+    }
+  }
+}
